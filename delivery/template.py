@@ -80,7 +80,7 @@ class EmailTemplate:
         <!-- Footer -->
         <div style="text-align: center; padding: 24px; color: #9ca3af; font-size: 12px;">
             <p style="margin: 0 0 8px 0;">Mobility Insight Bot으로 자동 생성된 브리핑입니다.</p>
-            <p style="margin: 0;">© 2024 Mobility Intelligence</p>
+            <p style="margin: 0;">© 2026 Mobility Intelligence</p>
         </div>
         
     </div>
