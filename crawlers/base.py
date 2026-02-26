@@ -1,0 +1,68 @@
+"""
+Base crawler class and Article dataclass.
+"""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import List
+import requests
+from bs4 import BeautifulSoup
+import time
+import logging
+
+from config import REQUEST_TIMEOUT, REQUEST_DELAY
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Article:
+    """Represents a news article."""
+    title: str
+    url: str
+    source: str
+    language: str  # "en" or "ko"
+    
+    def __repr__(self):
+        return f"Article(title='{self.title[:50]}...', source='{self.source}')"
+
+
+class BaseCrawler(ABC):
+    """Abstract base class for all news crawlers."""
+    
+    def __init__(self, source_name: str, base_url: str, language: str = "en"):
+        self.source_name = source_name
+        self.base_url = base_url
+        self.language = language
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+    
+    def _get_soup(self, url: str) -> BeautifulSoup | None:
+        """Fetch URL and return BeautifulSoup object."""
+        try:
+            time.sleep(REQUEST_DELAY)
+            response = requests.get(url, headers=self.headers, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            return BeautifulSoup(response.text, "html.parser")
+        except requests.RequestException as e:
+            logger.error(f"[{self.source_name}] Failed to fetch {url}: {e}")
+            return None
+    
+    @abstractmethod
+    def fetch(self) -> List[Article]:
+        """Fetch articles from the news source. Must be implemented by subclasses."""
+        pass
+    
+    def _create_article(self, title: str, url: str) -> Article:
+        """Create an Article instance with common attributes."""
+        # Ensure absolute URL
+        if not url.startswith("http"):
+            url = self.base_url.rstrip("/") + "/" + url.lstrip("/")
+        
+        return Article(
+            title=title.strip(),
+            url=url,
+            source=self.source_name,
+            language=self.language,
+        )
