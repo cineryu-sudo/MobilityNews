@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 preview_email.html
 .claude/
+data/sent_history.json

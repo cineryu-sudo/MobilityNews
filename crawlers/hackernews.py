@@ -3,6 +3,7 @@ Hacker News API client for autonomous/mobility related stories.
 """
 
 from typing import List
+from datetime import date, datetime
 import logging
 import requests
 
@@ -49,11 +50,20 @@ class HackerNewsCrawler(BaseCrawler):
                 for hit in data.get("hits", []):
                     title = hit.get("title", "")
                     url = hit.get("url") or f"https://news.ycombinator.com/item?id={hit.get('objectID')}"
-                    
+
+                    # API의 created_at에서 날짜 추출 (예: "2026-03-04T12:00:00.000Z")
+                    pub_date = None
+                    created_at = hit.get("created_at", "")
+                    if created_at:
+                        try:
+                            pub_date = datetime.fromisoformat(created_at.replace("Z", "+00:00")).date()
+                        except ValueError:
+                            pass
+
                     if title and url:
                         # Avoid duplicates
                         if not any(a.url == url for a in articles):
-                            articles.append(self._create_article(title, url))
+                            articles.append(self._create_article(title, url, published_date=pub_date))
                             
             except requests.RequestException as e:
                 logger.warning(f"[Hacker News] API request failed for '{query}': {e}")

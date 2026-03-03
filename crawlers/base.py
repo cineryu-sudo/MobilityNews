@@ -3,8 +3,9 @@ Base crawler class and Article dataclass.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Optional
+from datetime import date
 import requests
 from bs4 import BeautifulSoup
 import time
@@ -22,7 +23,8 @@ class Article:
     url: str
     source: str
     language: str  # "en" or "ko"
-    
+    published_date: Optional[date] = field(default=None)  # 기사 발행일 (없으면 None)
+
     def __repr__(self):
         return f"Article(title='{self.title[:50]}...', source='{self.source}')"
 
@@ -54,15 +56,16 @@ class BaseCrawler(ABC):
         """Fetch articles from the news source. Must be implemented by subclasses."""
         pass
     
-    def _create_article(self, title: str, url: str) -> Article:
+    def _create_article(self, title: str, url: str, published_date: Optional[date] = None) -> Article:
         """Create an Article instance with common attributes."""
         # Ensure absolute URL
         if not url.startswith("http"):
             url = self.base_url.rstrip("/") + "/" + url.lstrip("/")
-        
+
         return Article(
             title=title.strip(),
             url=url,
             source=self.source_name,
             language=self.language,
+            published_date=published_date,
         )

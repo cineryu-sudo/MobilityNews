@@ -40,7 +40,16 @@ MAX_ARTICLES_PER_SOURCE = 10
 
 # LLM Settings
 LLM_MODEL = "claude-sonnet-4-20250514"
-TOP_ARTICLES_COUNT = 5
+TOP_ARTICLES_COUNT = 5  # 총 기사 수 (하위 호환용)
+DOMESTIC_COUNT = 3       # 국내 기사 수 (한국어 소스)
+INTERNATIONAL_COUNT = 2  # 해외 기사 수 (영어 소스)
+
+# Date Filter Settings
+ARTICLE_MAX_AGE_DAYS = 2  # D-2: 최근 2일 이내 기사만 포함
+
+# Deduplication Settings
+SENT_HISTORY_FILE = "data/sent_history.json"  # 발송 이력 파일 경로
+HISTORY_RETENTION_DAYS = 7                     # 이력 보관 기간 (일)
 
 # Competitor Keywords (for filtering)
 COMPETITOR_KEYWORDS = [
