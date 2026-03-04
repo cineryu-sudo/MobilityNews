@@ -19,9 +19,10 @@ class ArticleSummary:
     """Contains summary information for an article."""
     original_title: str
     translated_title: str
-    summary: str  # 3-sentence summary
+    summary: str  # 3-5 sentence summary
     url: str
     source: str
+    category: str = ""  # e.g. 전기차, 자율주행, MaaS, 배터리, 플랫폼
 
 
 @dataclass
@@ -69,20 +70,35 @@ class Summarizer:
 [EXECUTIVE_INSIGHT]
 5개 기사를 관통하는 핵심 인사이트를 한 문장으로 작성 (조직장 보고용, 50자 내외)
 
+[ARTICLE_1_CATEGORY]
+카테고리를 하나만 선택 (전기차, 자율주행, MaaS, 배터리, 플랫폼, 커넥티드카, 수소차, 충전인프라, 정책/규제, 기타 중 택1)
+
 [ARTICLE_1_SUMMARY]
-3문장으로 핵심 내용 요약
+3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
+
+[ARTICLE_2_CATEGORY]
+카테고리를 하나만 선택
 
 [ARTICLE_2_SUMMARY]
-3문장으로 핵심 내용 요약
+3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
+
+[ARTICLE_3_CATEGORY]
+카테고리를 하나만 선택
 
 [ARTICLE_3_SUMMARY]
-3문장으로 핵심 내용 요약
+3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
+
+[ARTICLE_4_CATEGORY]
+카테고리를 하나만 선택
 
 [ARTICLE_4_SUMMARY]
-3문장으로 핵심 내용 요약
+3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
+
+[ARTICLE_5_CATEGORY]
+카테고리를 하나만 선택
 
 [ARTICLE_5_SUMMARY]
-3문장으로 핵심 내용 요약"""
+3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)"""
 
         try:
             response = self.client.messages.create(
@@ -99,13 +115,15 @@ class Summarizer:
             article_summaries = []
             for i, article in enumerate(articles):
                 summary_text = self._extract_section(response_text, f"ARTICLE_{i+1}_SUMMARY")
-                
+                category_text = self._extract_section(response_text, f"ARTICLE_{i+1}_CATEGORY")
+
                 article_summaries.append(ArticleSummary(
                     original_title=article.title,
                     translated_title=translations.get(article.title, article.title),
                     summary=summary_text or "요약을 생성할 수 없습니다.",
                     url=article.url,
                     source=article.source,
+                    category=category_text or "기타",
                 ))
             
             logger.info(f"Generated briefing with {len(article_summaries)} article summaries")
@@ -127,6 +145,7 @@ class Summarizer:
                         summary="기사 요약을 생성할 수 없습니다.",
                         url=a.url,
                         source=a.source,
+                        category="기타",
                     )
                     for a in articles
                 ]
@@ -143,7 +162,7 @@ class Summarizer:
         
         # Find next section or end of text
         end_idx = len(text)
-        for marker in ["[EXECUTIVE", "[ARTICLE"]:
+        for marker in ["[EXECUTIVE", "[ARTICLE_"]:
             next_idx = text.find(marker, start_idx)
             if next_idx != -1 and next_idx < end_idx:
                 end_idx = next_idx
