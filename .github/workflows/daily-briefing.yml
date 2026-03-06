@@ -2,8 +2,8 @@ name: Daily Mobility Briefing
 
 on:
   schedule:
-    # 매일 한국시간 오전 8시 (UTC 23:00 전날)
-    - cron: '0 23 * * *'
+    # 월~금 한국시간 오전 8시 (UTC 23:00 전날 일~목)
+    - cron: '0 23 * * 0-4'
   workflow_dispatch: # 수동 실행 가능
 
 jobs:
