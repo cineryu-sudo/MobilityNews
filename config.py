@@ -49,7 +49,7 @@ ARTICLE_MAX_AGE_DAYS = 2  # D-2: 최근 2일 이내 기사만 포함
 
 # Deduplication Settings
 SENT_HISTORY_FILE = "data/sent_history.json"  # 발송 이력 파일 경로
-HISTORY_RETENTION_DAYS = 7                     # 이력 보관 기간 (일)
+HISTORY_RETENTION_DAYS = 5                     # 이력 보관 기간 (일)
 
 # Competitor Keywords (for filtering)
 COMPETITOR_KEYWORDS = [
