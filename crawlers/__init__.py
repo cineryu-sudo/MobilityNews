@@ -9,6 +9,7 @@ from .autonews import AutoNewsCrawler
 from .etnews import ETNewsCrawler
 from .autodaily import AutoDailyCrawler
 from .hackernews import HackerNewsCrawler
+from .rss import TelematicsWireCrawler, ZDNetKoreaCrawler, FleetOwnerCrawler
 
 __all__ = [
     "Article",
@@ -19,4 +20,7 @@ __all__ = [
     "ETNewsCrawler",
     "AutoDailyCrawler",
     "HackerNewsCrawler",
+    "TelematicsWireCrawler",
+    "ZDNetKoreaCrawler",
+    "FleetOwnerCrawler",
 ]

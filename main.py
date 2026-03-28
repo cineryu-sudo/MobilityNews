@@ -124,6 +124,9 @@ def collect_articles():
         ETNewsCrawler,
         AutoDailyCrawler,
         HackerNewsCrawler,
+        TelematicsWireCrawler,
+        ZDNetKoreaCrawler,
+        FleetOwnerCrawler,
     )
 
     crawlers = [
@@ -133,6 +136,9 @@ def collect_articles():
         ETNewsCrawler(),
         AutoDailyCrawler(),
         HackerNewsCrawler(),
+        TelematicsWireCrawler(),
+        ZDNetKoreaCrawler(),
+        FleetOwnerCrawler(),
     ]
 
     all_articles = []
