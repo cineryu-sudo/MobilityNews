@@ -54,51 +54,36 @@ class Summarizer:
                 articles=[]
             )
         
-        # Prepare article list for LLM
+        # Prepare article list for LLM (본문이 있으면 함께 전달)
         article_info = "\n\n".join([
             f"[기사 {i+1}]\n출처: {a.source}\n제목: {translations.get(a.title, a.title)}\nURL: {a.url}"
+            + (f"\n본문 발췌: {a.content}" if a.content else "")
             for i, a in enumerate(articles)
         ])
         
+        # 기사 수에 맞게 프롬프트를 동적으로 생성
+        n = len(articles)
+        article_format = ""
+        for i in range(1, n + 1):
+            article_format += f"""
+[ARTICLE_{i}_CATEGORY]
+카테고리를 하나만 선택 (전기차, 자율주행, MaaS, 배터리, 플랫폼, 커넥티드카, 수소차, 충전인프라, 정책/규제, 기타 중 택1)
+
+[ARTICLE_{i}_SUMMARY]
+3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
+"""
+
         prompt = f"""당신은 모빌리티 업계 수석 애널리스트입니다.
-아래 5개 기사를 분석하여 경영진/팀원 브리핑을 작성해주세요.
+아래 {n}개 기사를 분석하여 경영진/팀원 브리핑을 작성해주세요.
+기사 본문 발췌가 제공된 경우 반드시 해당 내용을 기반으로 요약하세요.
 
 {article_info}
 
 다음 형식으로 작성해주세요:
 
 [EXECUTIVE_INSIGHT]
-5개 기사를 관통하는 핵심 인사이트를 한 문장으로 작성 (조직장 보고용, 50자 내외)
-
-[ARTICLE_1_CATEGORY]
-카테고리를 하나만 선택 (전기차, 자율주행, MaaS, 배터리, 플랫폼, 커넥티드카, 수소차, 충전인프라, 정책/규제, 기타 중 택1)
-
-[ARTICLE_1_SUMMARY]
-3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
-
-[ARTICLE_2_CATEGORY]
-카테고리를 하나만 선택
-
-[ARTICLE_2_SUMMARY]
-3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
-
-[ARTICLE_3_CATEGORY]
-카테고리를 하나만 선택
-
-[ARTICLE_3_SUMMARY]
-3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
-
-[ARTICLE_4_CATEGORY]
-카테고리를 하나만 선택
-
-[ARTICLE_4_SUMMARY]
-3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)
-
-[ARTICLE_5_CATEGORY]
-카테고리를 하나만 선택
-
-[ARTICLE_5_SUMMARY]
-3~5문장으로 핵심 내용을 상세히 요약 (배경, 핵심 사실, 의미/전망 포함)"""
+{n}개 기사를 관통하는 핵심 인사이트를 한 문장으로 작성 (조직장 보고용, 50자 내외)
+{article_format}"""
 
         try:
             response = self.client.messages.create(

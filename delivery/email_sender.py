@@ -56,11 +56,12 @@ class EmailSender:
             subject = f"[Mobility Briefing] {date_str} 모빌리티 데일리 브리핑"
         
         try:
-            # Create message
+            # Create message (수신자 개인정보 보호를 위해 Bcc 사용)
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             msg["From"] = f"Mobility Insight Bot <{self.sender_email}>"
-            msg["To"] = ", ".join(recipients)
+            msg["To"] = self.sender_email  # To에는 발신자만 표시
+            msg["Bcc"] = ", ".join(recipients)  # 수신자는 Bcc로 (서로 안 보임)
             
             # Attach HTML content
             html_part = MIMEText(html_content, "html", "utf-8")

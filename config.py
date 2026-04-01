@@ -48,20 +48,35 @@ REQUEST_TIMEOUT = 10   # HTTP 요청 타임아웃 (초)
 REQUEST_DELAY = 1      # 요청 간 대기 시간 (초) - 서버 부하 방지
 MAX_ARTICLES_PER_SOURCE = 10  # 소스당 최대 수집 기사 수
 
+<<<<<<< HEAD
 # ── LLM 설정 ───────────────────────────────────────────────────
 # Claude 모델 및 기사 선별 개수
 LLM_MODEL = "claude-sonnet-4-20250514"
 TOP_ARTICLES_COUNT = 5   # 총 기사 수 (하위 호환용)
 DOMESTIC_COUNT = 3       # 국내 기사 선별 수 (한국어 소스)
 INTERNATIONAL_COUNT = 2  # 해외 기사 선별 수 (영어 소스)
+=======
+# LLM Settings
+LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-20250514")
+TOP_ARTICLES_COUNT = 5  # 총 기사 수 (하위 호환용)
+DOMESTIC_COUNT = 3       # 국내 기사 수 (한국어 소스)
+INTERNATIONAL_COUNT = 2  # 해외 기사 수 (영어 소스)
+>>>>>>> 2e15b23 (Add article content crawling, new sources, and critical fixes)
 
 # ── 날짜 필터 설정 ─────────────────────────────────────────────
 ARTICLE_MAX_AGE_DAYS = 2  # D-2: 최근 2일 이내 기사만 포함 (오래된 기사 제거)
 
+<<<<<<< HEAD
 # ── 중복 발송 방지 설정 ────────────────────────────────────────
 # 이전에 발송한 기사 URL을 기록하여 동일 기사 재발송 방지
 SENT_HISTORY_FILE = "data/sent_history.json"  # 발송 이력 저장 파일
 HISTORY_RETENTION_DAYS = 5                     # 이력 보관 기간 (일) - 이후 자동 삭제
+=======
+# Deduplication Settings
+SENT_HISTORY_FILE = "data/sent_history.json"  # 발송 이력 파일 경로
+HISTORY_RETENTION_DAYS = 7                     # URL 이력 보관 기간 (일)
+TOPIC_DEDUP_WEEKDAYS = 5                       # 주제 중복 체크 기간 (영업일)
+>>>>>>> 2e15b23 (Add article content crawling, new sources, and critical fixes)
 
 # ── 필터링 키워드 ──────────────────────────────────────────────
 # 경쟁사 키워드: LLM 필터링 시 관련 기사 우선 선별에 활용

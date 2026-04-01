@@ -14,12 +14,19 @@ import anthropic
 
 from crawlers.base import Article
 from config import (
+<<<<<<< HEAD
     ANTHROPIC_API_KEY,
     LLM_MODEL,
     DOMESTIC_COUNT,
     INTERNATIONAL_COUNT,
     COMPETITOR_KEYWORDS,
     MARKET_KEYWORDS,
+=======
+    ANTHROPIC_API_KEY, LLM_MODEL,
+    DOMESTIC_COUNT, INTERNATIONAL_COUNT,
+    COMPETITOR_KEYWORDS, MARKET_KEYWORDS,
+    TOPIC_DEDUP_WEEKDAYS,
+>>>>>>> 2e15b23 (Add article content crawling, new sources, and critical fixes)
 )
 
 logger = logging.getLogger(__name__)
@@ -121,6 +128,7 @@ class ArticleFilter:
         )
         return result
 
+<<<<<<< HEAD
     def _dedupe_preserve_order(self, articles: List[Article]) -> List[Article]:
         seen = set()
         out = []
@@ -273,12 +281,25 @@ class ArticleFilter:
             return []
         if len(priority_pool) <= count:
             return priority_pool[:count]
+=======
+    def _select_by_llm(self, articles: List[Article], count: int, label: str) -> List[Article]:
+        """LLM으로 각 기사를 채점하여 관련성 50점 이상인 기사를 최대 count개 선정.
+
+        - 0~100점으로 채점 (경쟁사 70% + 시장지표 30% 기준)
+        - 50점 미만 기사는 제외 (품질 기준 미달)
+        - 50점 이상 기사 중 점수가 높은 순으로 최대 count개 반환
+        - 50점 이상 기사가 count개 미만이면, 있는 만큼만 반환
+        """
+        if not articles:
+            return []
+>>>>>>> 2e15b23 (Add article content crawling, new sources, and critical fixes)
 
         article_list = "\n".join([
             f"{i+1}. [{a.source}] {a.title}"
             for i, a in enumerate(priority_pool)
         ])
 
+<<<<<<< HEAD
         prompt = f"""당신은 모빌리티 산업 전문 에디터입니다.
 아래 {label} 뉴스 목록에서 가장 중요한 {count}개를 선택해주세요.
 
@@ -293,14 +314,120 @@ class ArticleFilter:
 - 경쟁사/시장 relevance를 함께 반영
 - 경쟁사 관점 키워드: {', '.join(COMPETITOR_KEYWORDS[:10])}
 - 시장 관점 키워드: {', '.join(MARKET_KEYWORDS[:10])}
+=======
+        prompt = f"""당신은 모빌리티 업계 전문 에디터입니다.
+아래 {label} 뉴스 기사 목록에서 각 기사의 관련성 점수를 매겨주세요.
+
+채점 기준:
+1. 경쟁사 관련 뉴스 (70% 비중): {', '.join(COMPETITOR_KEYWORDS[:10])} 등
+2. 시장 지표/트렌드 (30% 비중): {', '.join(MARKET_KEYWORDS[:10])} 등
+>>>>>>> 2e15b23 (Add article content crawling, new sources, and critical fixes)
+
+점수 기준:
+- 90~100: 핵심 경쟁사의 주요 발표/전략 변화
+- 70~89: 업계 주요 동향, 시장 변화
+- 50~69: 관련성 있으나 직접적이지 않은 뉴스
+- 50 미만: 모빌리티 업계와 관련성이 낮은 기사
 
 기사 목록:
 {article_list}
 
+<<<<<<< HEAD
 반드시 아래 JSON 형식만 출력하세요:
 {{"selected_indices": [1, 2, 3]}}
 
 selected_indices는 위 목록의 번호(1부터 시작)이며 정확히 {count}개여야 합니다."""
+=======
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{{"scores": [{{"index": 1, "score": 85}}, {{"index": 2, "score": 42}}, ...]}}
+
+scores 배열에 모든 기사의 번호(index)와 점수(score, 0~100 정수)를 포함해주세요."""
+
+        try:
+            response = self.client.messages.create(
+                model=LLM_MODEL,
+                max_tokens=500,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = response.content[0].text.strip()
+
+            # 마크다운 코드블록 처리
+            if "```" in response_text:
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+
+            result = json.loads(response_text)
+            scores = result.get("scores", [])
+
+            # 점수 50 이상인 기사만 필터링 후 점수 내림차순 정렬
+            valid_scores = [s for s in scores if s.get("score", 0) >= 50]
+            valid_scores.sort(key=lambda s: s["score"], reverse=True)
+
+            # 상위 count개 선정 (1-indexed → 0-indexed 변환)
+            selected_articles = []
+            for s in valid_scores[:count]:
+                real_idx = s["index"] - 1
+                if 0 <= real_idx < len(articles):
+                    selected_articles.append(articles[real_idx])
+
+            below_threshold = len(articles) - len(valid_scores)
+            logger.info(
+                f"[{label}] {len(articles)}건 채점 완료 → "
+                f"50점 미만 제외 {below_threshold}건, 최종 선정 {len(selected_articles)}건"
+            )
+            return selected_articles
+
+        except Exception as e:
+            logger.error(f"[{label}] LLM 필터링 실패: {e}")
+            # 실패 시 앞에서부터 count개 반환
+            return articles[:count]
+
+    def remove_duplicate_topics(self, articles: List[Article], recent_titles: List[str]) -> List[Article]:
+        """
+        최근 TOPIC_DEDUP_WEEKDAYS(5 영업일) 내 발송된 기사와 같은 주제/내용의 기사를 제거한다.
+
+        Args:
+            articles: 현재 후보 기사 목록
+            recent_titles: 최근 5 영업일 내 발송된 기사 제목 목록
+
+        Returns:
+            중복 주제가 제거된 기사 목록
+        """
+        # 최근 이력이 없거나 후보 기사가 없으면 그대로 반환
+        if not recent_titles or not articles:
+            return articles
+
+        # LLM에 보낼 목록 준비
+        article_list = "\n".join([
+            f"{i+1}. {a.title}"
+            for i, a in enumerate(articles)
+        ])
+        recent_list = "\n".join([f"- {t}" for t in recent_titles])
+
+        prompt = f"""당신은 뉴스레터 에디터입니다.
+아래 '최근 발송된 기사'와 동일하거나 매우 유사한 주제를 다루는 '신규 후보 기사' 번호를 찾아주세요.
+
+중복으로 판단하는 기준:
+- 같은 사건/사고를 다루는 경우
+- 같은 회사의 같은 발표/제품/정책을 다루는 경우
+- 단순 업데이트(후속 보도)인 경우
+
+최근 발송된 기사 (평일 5일 이내):
+{recent_list}
+
+신규 후보 기사:
+{article_list}
+
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{{"duplicate_indices": [1, 3]}}
+
+중복이 없으면: {{"duplicate_indices": []}}
+
+duplicate_indices는 신규 후보 기사 목록에서 최근 발송 기사와 주제가 중복되는 기사 번호입니다 (1부터 시작)."""
+>>>>>>> 2e15b23 (Add article content crawling, new sources, and critical fixes)
 
         try:
             response = self.client.messages.create(
@@ -318,8 +445,10 @@ selected_indices는 위 목록의 번호(1부터 시작)이며 정확히 {count}
                 response_text = response_text.strip()
 
             result = json.loads(response_text)
-            selected_indices = result.get("selected_indices", [])
+            # 중복으로 판정된 기사 번호 집합 (1-indexed)
+            duplicate_indices = set(result.get("duplicate_indices", []))
 
+<<<<<<< HEAD
             selected_articles = []
             for idx in selected_indices:
                 real_idx = idx - 1
@@ -332,3 +461,21 @@ selected_indices는 위 목록의 번호(1부터 시작)이며 정확히 {count}
         except Exception as e:
             logger.error(f"[{label}] LLM 필터링 실패: {e}")
             return priority_pool[:count]
+=======
+            # 중복 기사 제외하고 나머지 반환
+            filtered = [
+                a for i, a in enumerate(articles, 1)
+                if i not in duplicate_indices
+            ]
+
+            removed = len(articles) - len(filtered)
+            if removed > 0:
+                logger.info(f"주제 중복 기사 {removed}건 제거 (최근 {TOPIC_DEDUP_WEEKDAYS} 영업일 이내 발송 기사와 중복)")
+
+            return filtered
+
+        except Exception as e:
+            logger.error(f"주제 중복 제거 실패: {e}")
+            # 실패 시 원본 목록 그대로 반환
+            return articles
+>>>>>>> 2e15b23 (Add article content crawling, new sources, and critical fixes)

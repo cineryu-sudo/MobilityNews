@@ -22,6 +22,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # 발송 이력 파일을 캐싱하여 중복 발송 방지 (URL + 주제 중복 체크용)
+      - name: Restore sent history cache
+        uses: actions/cache@v4
+        with:
+          path: data/sent_history.json
+          # 매일 새 캐시 생성, 이전 캐시가 있으면 복원
+          key: sent-history-${{ github.run_id }}
+          restore-keys: |
+            sent-history-
+
       - name: Run Mobility Insight Bot
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
