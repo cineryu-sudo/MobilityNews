@@ -4,7 +4,13 @@ on:
   schedule:
     # 월~금 한국시간 오전 8시 (UTC 23:00 전날 일~목)
     - cron: '0 23 * * 0-4'
-  workflow_dispatch: # 수동 실행 가능
+  workflow_dispatch:
+    inputs:
+      manual_approval:
+        description: 'Generate preview and approval draft without sending email'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   send-briefing:
@@ -32,10 +38,36 @@ jobs:
           restore-keys: |
             sent-history-
 
+      - name: Restore ops report cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/runs
+            data/weekly
+          key: ops-history-${{ github.run_id }}
+          restore-keys: |
+            ops-history-
+
       - name: Run Mobility Insight Bot
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAILS: ${{ secrets.RECIPIENT_EMAILS }}
-        run: python main.py
+        run: |
+          if [ "${{ github.event.inputs.manual_approval }}" = "true" ]; then
+            python main.py --manual-approval
+          else
+            python main.py
+          fi
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilitynews-artifacts-${{ github.run_id }}
+          path: |
+            data/runs
+            data/weekly
+            preview_email.html
+          if-no-files-found: ignore

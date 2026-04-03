@@ -57,7 +57,10 @@ RECIPIENT_EMAILS=a@example.com,b@example.com
 .\.venv\Scripts\python.exe .\main.py --dry-run
 ```
 
-- 결과: `preview_email.html` 생성
+- 결과:
+  - `preview_email.html` 생성
+  - `data/runs/<run_id>/report.json`
+  - `data/runs/<run_id>/report.md`
 
 실제 발송:
 
@@ -65,15 +68,57 @@ RECIPIENT_EMAILS=a@example.com,b@example.com
 .\.venv\Scripts\python.exe .\main.py
 ```
 
+수동 승인 모드:
+
+```powershell
+.\.venv\Scripts\python.exe .\main.py --manual-approval
+```
+
+- 결과:
+  - 발송 없이 preview 생성
+  - `data/runs/<run_id>/approval_draft.json` 저장
+
+승인된 초안 발송:
+
+```powershell
+.\.venv\Scripts\python.exe .\main.py --send-approved-draft .\data\runs\<run_id>\approval_draft.json
+```
+
+주간 운영 리포트만 생성:
+
+```powershell
+.\.venv\Scripts\python.exe .\main.py --weekly-report-only
+```
+
+주간 운영 리포트 생성 후 이메일 발송:
+
+```powershell
+.\.venv\Scripts\python.exe .\main.py --send-weekly-report
+```
+
+- 기본 수신자:
+  - `goodnews@lguplus.co.kr`
+- 환경변수 `OPS_REPORT_RECIPIENT_EMAILS`로 변경 가능
+
 ## GitHub Actions 실행
 워크플로우 파일: `.github/workflows/daily-briefing.yml`
 
 - 스케줄 실행 + 수동 실행(`workflow_dispatch`) 지원
+- 수동 실행 시 `manual_approval=true`로 승인 초안만 생성 가능
 - GitHub Secrets 필요:
   - `ANTHROPIC_API_KEY`
   - `GMAIL_ADDRESS`
   - `GMAIL_APP_PASSWORD`
   - `RECIPIENT_EMAILS`
+- 실행 결과 아티팩트:
+  - `data/runs/`
+  - `data/weekly/`
+  - `preview_email.html`
+
+주간 운영 리포트 워크플로우: `.github/workflows/weekly-ops-report.yml`
+
+- 매주 금요일 오전 8시 30분 KST 기준 실행
+- 최근 7일 운영 리포트를 생성하고 `goodnews@lguplus.co.kr`로 이메일 발송
 
 ## 수정 방법 (빠른 가이드)
 자주 수정하는 포인트만 정리합니다.

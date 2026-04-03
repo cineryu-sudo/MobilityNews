@@ -37,6 +37,7 @@ class BaseCrawler(ABC):
         self.source_name = source_name
         self.base_url = base_url
         self.language = language
+        self.last_error = ""
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
@@ -44,11 +45,13 @@ class BaseCrawler(ABC):
     def _get_soup(self, url: str) -> BeautifulSoup | None:
         """Fetch URL and return BeautifulSoup object."""
         try:
+            self.last_error = ""
             time.sleep(REQUEST_DELAY)
             response = requests.get(url, headers=self.headers, timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
             return BeautifulSoup(response.text, "html.parser")
         except requests.RequestException as e:
+            self.last_error = str(e)
             logger.error(f"[{self.source_name}] Failed to fetch {url}: {e}")
             return None
     
