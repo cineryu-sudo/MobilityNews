@@ -21,7 +21,12 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import List
 
-from config import ARTICLE_MAX_AGE_DAYS, SENT_HISTORY_FILE, HISTORY_RETENTION_DAYS
+from config import (
+    ANTHROPIC_API_KEY,
+    ARTICLE_MAX_AGE_DAYS,
+    SENT_HISTORY_FILE,
+    HISTORY_RETENTION_DAYS,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +35,21 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 logger = logging.getLogger(__name__)
+
+
+def ensure_llm_configured() -> None:
+    """Fail fast when the Anthropic API key is not configured."""
+    if ANTHROPIC_API_KEY.strip():
+        return
+
+    raise RuntimeError(
+        "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add a valid Anthropic API key."
+    )
+
+
+def should_save_history(success: bool, dry_run: bool) -> bool:
+    """Only persist send history after a real successful send."""
+    return success and not dry_run
 
 
 # ── 발송 이력 관리 (중복 기사 방지) ──────────────────────────────
@@ -233,6 +253,8 @@ def main():
     logger.info("=" * 50)
 
     try:
+        ensure_llm_configured()
+
         # Step 0: 발송 이력 불러오기 + 오래된 이력 정리
         history = load_sent_history()
         history = cleanup_old_history(history)
@@ -263,7 +285,7 @@ def main():
         success = send_briefing(briefing, dry_run=args.dry_run)
 
         # Step 4: 발송한 기사 URL을 이력에 기록
-        if success:
+        if should_save_history(success, args.dry_run):
             today_str = date.today().isoformat()
             for article in briefing.articles:
                 history["urls"][article.url] = today_str
