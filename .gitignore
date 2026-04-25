@@ -4,3 +4,5 @@ __pycache__/
 preview_email.html
 .claude/
 data/sent_history.json
+data/runs/
+data/weekly/
