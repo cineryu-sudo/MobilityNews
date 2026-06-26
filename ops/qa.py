@@ -14,6 +14,22 @@ SUMMARY_ERROR_MARKERS = {
     "브리핑 생성 중 오류가 발생했습니다.",
 }
 
+# substring 매칭용 fallback 패턴. summarize.py의 fallback 문구가 변형되어도
+# ("기사 요약을 생성할 수 없습니다." 등) 누락 없이 차단하기 위함이다.
+FALLBACK_TEXT_PATTERNS = (
+    "생성할 수 없습니다",
+    "오류가 발생했습니다",
+    "분석 중입니다",
+)
+
+
+def _contains_fallback_text(text: str) -> bool:
+    """Return True if text contains any known fallback marker."""
+    stripped = text.strip()
+    if stripped in SUMMARY_ERROR_MARKERS:
+        return True
+    return any(pattern in stripped for pattern in FALLBACK_TEXT_PATTERNS)
+
 NON_MOBILITY_TERMS = {
     "스마트폰", "휴대폰", "아이폰", "갤럭시", "포코", "게임",
     "klpga", "스포츠", "리듬하이브", "라인게임즈", "넥슨",
@@ -82,7 +98,7 @@ def evaluate_briefing(selected_articles, briefing) -> QaResult:
         seen_titles.add(normalized_title)
 
         summary_text = summary.summary.strip()
-        if summary_text in SUMMARY_ERROR_MARKERS:
+        if _contains_fallback_text(summary_text):
             findings.append(QaFinding("error", "summary_fallback", f"요약 생성 실패 기사: {summary.translated_title}"))
         elif len(summary_text) < 60:
             findings.append(QaFinding("warning", "summary_too_short", f"요약이 짧은 기사: {summary.translated_title}"))
@@ -96,7 +112,16 @@ def evaluate_briefing(selected_articles, briefing) -> QaResult:
         if summary.category == "기타":
             findings.append(QaFinding("warning", "uncategorized_article", f"카테고리가 '기타'인 기사: {summary.translated_title}"))
 
-    if len(briefing.executive_insight.strip()) < 20:
+    insight_text = briefing.executive_insight.strip()
+    if _contains_fallback_text(insight_text):
+        findings.append(
+            QaFinding(
+                "error",
+                "insight_fallback",
+                "경영진 인사이트가 fallback 문구로 채워졌습니다. LLM 호출 실패 가능성이 있어 발송을 차단합니다.",
+            )
+        )
+    elif len(insight_text) < 20:
         findings.append(QaFinding("warning", "weak_insight", "경영진 인사이트 문장이 지나치게 짧습니다."))
 
     blocked = any(finding.severity == "error" for finding in findings)

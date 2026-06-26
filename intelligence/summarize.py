@@ -118,9 +118,19 @@ class Summarizer:
                 articles=article_summaries,
             )
             
+        except anthropic.AuthenticationError as e:
+            # 인증 에러(401)는 절대 fallback 발송하지 않고 파이프라인을 중단시킨다.
+            # GitHub Secrets의 ANTHROPIC_API_KEY가 무효/만료된 상황으로,
+            # 빈 요약 메일이 발송되는 사고를 막기 위함이다.
+            logger.error(f"Summarization auth error (401): {e}")
+            raise RuntimeError(
+                "Anthropic API 인증 실패(401)로 요약 생성을 중단합니다. "
+                "GitHub Secrets의 ANTHROPIC_API_KEY가 유효한지 확인하세요. "
+                f"원본 에러: {e}"
+            ) from e
         except Exception as e:
             logger.error(f"Summarization failed: {e}")
-            # Fallback: create basic summaries
+            # Fallback: create basic summaries (QA 게이트에서 차단됨)
             return BriefingResult(
                 executive_insight="브리핑 생성 중 오류가 발생했습니다.",
                 articles=[

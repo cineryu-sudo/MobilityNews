@@ -69,7 +69,7 @@ MAX_ARTICLES_PER_SOURCE = 10  # 소스당 최대 수집 기사 수
 
 # ── LLM 설정 ───────────────────────────────────────────────────
 # Claude 모델 및 기사 선별 개수
-LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-20250514")
+LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
 TOP_ARTICLES_COUNT = 5   # 총 기사 수 (하위 호환용)
 DOMESTIC_COUNT = 3       # 국내 기사 선별 수 (한국어 소스)
 INTERNATIONAL_COUNT = 2  # 해외 기사 선별 수 (영어 소스)
