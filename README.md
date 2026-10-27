@@ -9,10 +9,11 @@
   - 이미 보낸 기사 URL 중복 제거
 - AI 처리:
   - 국내 3건 + 해외 2건 선별
+  - 커넥티드카사업팀, AI인포사업팀, FMS솔루션사업팀 관점의 균형 평가
   - 영어 기사 제목 한글 번역
-  - 경영진용 인사이트 + 기사 요약 생성
+  - 핵심 3개 포인트 + 산업 중요성 + 후속 관찰 포인트 생성
 - 결과 전달:
-  - HTML 이메일 생성
+  - `Mobility Business Radar` HTML 이메일 생성
   - Gmail SMTP 발송
 - 자동 실행:
   - GitHub Actions 스케줄 실행 (`.github/workflows/daily-briefing.yml`)
@@ -122,6 +123,13 @@ RECIPIENT_EMAILS=a@example.com,b@example.com
 
 ## 수정 방법 (빠른 가이드)
 자주 수정하는 포인트만 정리합니다.
+
+### 브리핑 V2 콘텐츠 구조
+- `TODAY'S SIGNAL`: 전체 기사를 관통하는 모빌리티 사업 신호
+- `ORGANIZATION VIEW`: 세 사업팀 관련 기사 커버리지
+- `KEY POINTS`: 기사별 핵심 사실 3개
+- `WHY IT MATTERS`: 산업 관점의 중요성
+- `WATCH NEXT`: 다음으로 확인할 후속 신호
 
 ### 1) 수집 소스 추가/수정
 - 파일: `crawlers/*.py`

@@ -125,8 +125,10 @@ def _build_run_markdown(report_dict: dict) -> str:
     if selected_articles:
         lines.extend(["", "## Selected Articles"])
         for article in selected_articles:
+            related_teams = ", ".join(article.get("related_teams", [])) or "미분류"
             lines.append(
-                f"- [{article.get('source')}] {article.get('translated_title')} ({article.get('category', '기타')})"
+                f"- [{article.get('source')}] {article.get('translated_title')} "
+                f"({article.get('category', '기타')} | {related_teams})"
             )
 
     delivery = report_dict.get("delivery_result")

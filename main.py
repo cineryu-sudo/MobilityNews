@@ -38,6 +38,7 @@ from config import (
 from crawlers.base import Article
 from delivery import EmailSender, EmailTemplate
 from intelligence import ArticleFilter, Summarizer, Translator
+from intelligence.organization import ORGANIZATION_TEAMS
 from ops.models import RunMode, RunReport, RunState, SourceRunResult
 from ops.qa import evaluate_briefing
 from ops.reporting import (
@@ -360,6 +361,11 @@ def build_selected_article_records(selected_articles: List[Article], briefing) -
                 "translated_title": summary.translated_title,
                 "summary": summary.summary,
                 "category": summary.category,
+                "key_points": summary.key_points,
+                "why_it_matters": summary.why_it_matters,
+                "related_teams": summary.related_teams,
+                "cross_team_signal": summary.is_cross_team_signal,
+                "watch_point": summary.watch_point,
             }
         )
     return records
@@ -382,7 +388,9 @@ def log_dry_run_preview(briefing) -> None:
     logger.info("Articles:")
     for index, article in enumerate(briefing.articles, 1):
         logger.info(f"  {index}. [{article.source}] {article.translated_title}")
-        logger.info(f"     {article.summary[:100]}...")
+        logger.info(f"     관련 조직: {', '.join(article.related_teams)}")
+        for point in article.key_points:
+            logger.info(f"     - {point}")
 
 
 def build_approval_draft(run_id: str, html_content: str, selected_articles: List[dict], preview_path: str) -> dict:
@@ -595,6 +603,15 @@ def run_pipeline(mode: str) -> int:
         report.summary["international_selected"] = len([a for a in selected_articles if a.language == "en"])
 
         report.selected_articles = build_selected_article_records(selected_articles, briefing)
+        for team in ORGANIZATION_TEAMS:
+            report.summary[f"coverage_{team}"] = sum(
+                team in article.related_teams
+                for article in briefing.articles
+            )
+        report.summary["cross_team_signals"] = sum(
+            article.is_cross_team_signal
+            for article in briefing.articles
+        )
         report.scout_suggestions = build_source_scout_suggestions(
             source_results,
             recent_reports,

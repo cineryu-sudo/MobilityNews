@@ -5,8 +5,10 @@ Pre-send quality gate for the final briefing.
 from collections import Counter
 import re
 from typing import List
+from urllib.parse import urlparse
 
 from config import DOMESTIC_COUNT, INTERNATIONAL_COUNT, QA_MIN_ARTICLE_COUNT
+from intelligence.organization import ALL_TEAM_TAGS, ORGANIZATION_TEAMS
 from ops.models import QaFinding, QaResult
 
 SUMMARY_ERROR_MARKERS = {
@@ -54,6 +56,8 @@ def _normalize_title(title: str) -> str:
 def evaluate_briefing(selected_articles, briefing) -> QaResult:
     """Validate the final briefing before delivery."""
     findings: List[QaFinding] = []
+    covered_teams = set()
+    cross_team_signals = 0
 
     if len(selected_articles) != len(briefing.articles):
         findings.append(QaFinding("error", "article_mismatch", "선정 기사와 브리핑 기사 수가 일치하지 않습니다."))
@@ -88,6 +92,10 @@ def evaluate_briefing(selected_articles, briefing) -> QaResult:
     seen_urls = set()
     seen_titles = set()
     for article, summary in zip(selected_articles, briefing.articles):
+        parsed_url = urlparse(article.url)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            findings.append(QaFinding("error", "invalid_url", f"유효하지 않은 기사 URL: {article.url}"))
+
         if article.url in seen_urls:
             findings.append(QaFinding("error", "duplicate_url", f"중복 URL 기사 발견: {article.url}"))
         seen_urls.add(article.url)
@@ -103,6 +111,89 @@ def evaluate_briefing(selected_articles, briefing) -> QaResult:
         elif len(summary_text) < 60:
             findings.append(QaFinding("warning", "summary_too_short", f"요약이 짧은 기사: {summary.translated_title}"))
 
+        if len(summary.key_points) != 3:
+            findings.append(
+                QaFinding(
+                    "error",
+                    "invalid_key_point_count",
+                    f"핵심 포인트가 3개가 아닌 기사: {summary.translated_title}",
+                )
+            )
+        else:
+            normalized_points = {
+                re.sub(r"\s+", " ", point.strip().lower())
+                for point in summary.key_points
+                if point.strip()
+            }
+            if len(normalized_points) != 3:
+                findings.append(
+                    QaFinding(
+                        "error",
+                        "duplicate_key_points",
+                        f"핵심 포인트가 비어 있거나 중복된 기사: {summary.translated_title}",
+                    )
+                )
+            for point in summary.key_points:
+                if _contains_fallback_text(point):
+                    findings.append(
+                        QaFinding(
+                            "error",
+                            "key_point_fallback",
+                            f"핵심 포인트 생성 실패 기사: {summary.translated_title}",
+                        )
+                    )
+                    break
+
+        why_it_matters = summary.why_it_matters.strip()
+        if not why_it_matters or _contains_fallback_text(why_it_matters):
+            findings.append(
+                QaFinding(
+                    "error",
+                    "missing_why_it_matters",
+                    f"산업 중요성 설명이 없는 기사: {summary.translated_title}",
+                )
+            )
+        elif len(why_it_matters) < 20:
+            findings.append(
+                QaFinding(
+                    "warning",
+                    "weak_why_it_matters",
+                    f"산업 중요성 설명이 짧은 기사: {summary.translated_title}",
+                )
+            )
+
+        if not summary.related_teams:
+            findings.append(
+                QaFinding(
+                    "error",
+                    "missing_related_teams",
+                    f"관련 조직 태그가 없는 기사: {summary.translated_title}",
+                )
+            )
+        else:
+            invalid_teams = set(summary.related_teams) - set(ALL_TEAM_TAGS)
+            if invalid_teams:
+                findings.append(
+                    QaFinding(
+                        "error",
+                        "invalid_related_team",
+                        f"잘못된 조직 태그 {sorted(invalid_teams)}: {summary.translated_title}",
+                    )
+                )
+            article_teams = set(summary.related_teams) & set(ORGANIZATION_TEAMS)
+            covered_teams.update(article_teams)
+            if len(article_teams) >= 2:
+                cross_team_signals += 1
+
+        if not summary.watch_point.strip():
+            findings.append(
+                QaFinding(
+                    "warning",
+                    "missing_watch_point",
+                    f"후속 관찰 포인트가 없는 기사: {summary.translated_title}",
+                )
+            )
+
         title_text = f"{summary.original_title} {summary.translated_title}".lower()
         if any(term in title_text for term in NON_MOBILITY_TERMS) and not any(
             term in title_text for term in MOBILITY_CONTEXT_TERMS
@@ -111,6 +202,25 @@ def evaluate_briefing(selected_articles, briefing) -> QaResult:
 
         if summary.category == "기타":
             findings.append(QaFinding("warning", "uncategorized_article", f"카테고리가 '기타'인 기사: {summary.translated_title}"))
+
+    for team in ORGANIZATION_TEAMS:
+        if team not in covered_teams:
+            findings.append(
+                QaFinding(
+                    "warning",
+                    "organization_coverage_gap",
+                    f"이번 브리핑에 {team} 직접 관련 기사가 없습니다.",
+                )
+            )
+
+    if briefing.articles and cross_team_signals == 0:
+        findings.append(
+            QaFinding(
+                "warning",
+                "cross_team_signal_missing",
+                "여러 사업팀에 동시에 관련된 교차 조직 신호가 없습니다.",
+            )
+        )
 
     insight_text = briefing.executive_insight.strip()
     if _contains_fallback_text(insight_text):
