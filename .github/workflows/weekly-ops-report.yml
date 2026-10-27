@@ -1,0 +1,51 @@
+name: Weekly Mobility Ops Report
+
+on:
+  schedule:
+    # 매주 금요일 한국시간 오전 8시 30분 (UTC 목요일 23:30)
+    - cron: '30 23 * * 4'
+  workflow_dispatch:
+
+jobs:
+  send-weekly-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore ops report cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/runs
+            data/weekly
+          key: ops-history-weekly-${{ github.run_id }}
+          restore-keys: |
+            ops-history-
+            ops-history-weekly-
+
+      - name: Run Weekly Ops Report
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OPS_REPORT_RECIPIENT_EMAILS: goodnews@lguplus.co.kr
+        run: python main.py --send-weekly-report
+
+      - name: Upload weekly report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobilitynews-weekly-report-${{ github.run_id }}
+          path: |
+            data/runs
+            data/weekly
+          if-no-files-found: ignore
