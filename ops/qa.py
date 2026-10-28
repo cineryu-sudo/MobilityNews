@@ -32,6 +32,23 @@ def _contains_fallback_text(text: str) -> bool:
         return True
     return any(pattern in stripped for pattern in FALLBACK_TEXT_PATTERNS)
 
+# 본문 근거 없이 쓴 흔적. 요약이 제목만 보고 추정했다는 뜻이므로 발송을 막는다.
+UNSUPPORTED_CLAIM_PATTERNS = (
+    "제목을 통해",
+    "제목만으로",
+    "본문 발췌가 제한",
+    "본문이 제한",
+    "원문 확인이 필요하나",
+    "원문 확인이 필요함",
+    "확인되지 않으나",
+)
+
+
+def _contains_unsupported_claim(text: str) -> bool:
+    """Return True if the text admits it was written without article evidence."""
+    return any(pattern in text for pattern in UNSUPPORTED_CLAIM_PATTERNS)
+
+
 NON_MOBILITY_TERMS = {
     "스마트폰", "휴대폰", "아이폰", "갤럭시", "포코", "게임",
     "klpga", "스포츠", "리듬하이브", "라인게임즈", "넥슨",
@@ -143,6 +160,16 @@ def evaluate_briefing(selected_articles, briefing) -> QaResult:
                         )
                     )
                     break
+
+        evidence_text = " ".join([summary.summary, *summary.key_points, summary.why_it_matters])
+        if _contains_unsupported_claim(evidence_text):
+            findings.append(
+                QaFinding(
+                    "error",
+                    "unsupported_claim",
+                    f"본문 근거 없이 작성된 요약 문구가 있는 기사: {summary.translated_title}",
+                )
+            )
 
         why_it_matters = summary.why_it_matters.strip()
         if not why_it_matters or _contains_fallback_text(why_it_matters):

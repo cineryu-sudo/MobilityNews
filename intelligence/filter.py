@@ -1,20 +1,24 @@
 """
-Article filtering using two-step selection:
+Article filtering using three-step selection:
 1) Rule-based organization relevance ranking to reduce unrelated noise.
-2) LLM final pick with domestic/international quotas and team balance.
+2) Article body pre-fetch: candidates without a usable body are dropped
+   so every summary is grounded in actual article text.
+3) LLM final pick with domestic/international upper limits and team balance.
+   The LLM may return fewer articles than the limit when nothing qualifies.
 """
 
 import json
 import logging
 import re
 from difflib import SequenceMatcher
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 import anthropic
 
-from crawlers.base import Article
+from crawlers.base import Article, ContentFetcher
 from config import (
     ANTHROPIC_API_KEY,
+    ARTICLE_CONTENT_MIN_CHARS,
     LLM_MODEL,
     DOMESTIC_COUNT,
     INTERNATIONAL_COUNT,
@@ -118,14 +122,18 @@ def score_team_relevance(article: Article) -> dict[str, int]:
 class ArticleFilter:
     """Filters and ranks articles using rule-based + LLM criteria."""
 
-    def __init__(self):
+    def __init__(self, content_fetcher: Callable[[str], str] | None = None):
         self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        # 기사 URL → 본문 텍스트. 테스트에서는 가짜 함수로 바꿔 끼운다.
+        self.content_fetcher = content_fetcher or ContentFetcher().fetch_article_content
 
     def filter_top_articles(self, articles: List[Article]) -> List[Article]:
         """
-        Split domestic/international and pick with quotas.
-        - Domestic: DOMESTIC_COUNT
-        - International: INTERNATIONAL_COUNT
+        Split domestic/international and pick within upper limits.
+        - Domestic: up to DOMESTIC_COUNT
+        - International: up to INTERNATIONAL_COUNT
+        Articles are only ever drawn from the verified pool (mobility rule pass
+        + usable body), so a short quota is left short rather than padded.
         """
         if not articles:
             return []
@@ -135,20 +143,11 @@ class ArticleFilter:
 
         logger.info(f"국내 후보 {len(domestic)}건, 해외 후보 {len(international)}건")
 
-        selected_domestic = self._select_by_llm(domestic, DOMESTIC_COUNT, "국내")
-        selected_international = self._select_by_llm(international, INTERNATIONAL_COUNT, "해외")
+        domestic_pool = self._build_verified_pool(domestic, DOMESTIC_COUNT, "국내")
+        international_pool = self._build_verified_pool(international, INTERNATIONAL_COUNT, "해외")
 
-        if len(selected_international) == 0 and domestic:
-            borrow = min(2, len(domestic))
-            supplement = self._select_fallback_generic(domestic, borrow, exclude=selected_domestic)
-            selected_domestic.extend(supplement)
-            logger.info(f"[보정] 해외 0건 -> 국내 대체 {len(supplement)}건")
-
-        if len(selected_domestic) == 0 and international:
-            borrow = min(2, len(international))
-            supplement = self._select_fallback_generic(international, borrow, exclude=selected_international)
-            selected_international.extend(supplement)
-            logger.info(f"[보정] 국내 0건 -> 해외 대체 {len(supplement)}건")
+        selected_domestic = self._pick_with_llm(domestic_pool, DOMESTIC_COUNT, "국내")
+        selected_international = self._pick_with_llm(international_pool, INTERNATIONAL_COUNT, "해외")
 
         initially_selected = selected_domestic + selected_international
         result = self._dedupe_preserve_order(initially_selected)
@@ -156,22 +155,9 @@ class ArticleFilter:
         result = self._remove_semantic_duplicates(result)
         result = self._supplement_language_quotas(
             result,
-            articles,
+            domestic_pool + international_pool,
             exclude=initially_selected,
         )
-
-        target_count = min(DOMESTIC_COUNT + INTERNATIONAL_COUNT, len(articles))
-        if len(result) < target_count:
-            need = target_count - len(result)
-            supplement = self._select_fallback_generic(
-                articles,
-                need,
-                exclude=initially_selected + result,
-            )
-            result.extend(supplement)
-            result = self._dedupe_preserve_order(result)
-            result = self._remove_near_duplicates(result, label="최종-보정")
-            logger.info(f"[보정] 목표 기사수 보장 +{len(supplement)}건")
 
         final_domestic = sum(article.language == "ko" for article in result)
         final_international = sum(article.language == "en" for article in result)
@@ -434,30 +420,60 @@ class ArticleFilter:
         )
         return pool
 
-    def _select_by_llm(self, articles: List[Article], count: int, label: str) -> List[Article]:
-        """Use LLM to choose final articles from the pre-ranked priority pool."""
+    def _ensure_contents(self, articles: List[Article], label: str) -> List[Article]:
+        """Fetch bodies for candidates and drop any without enough text to summarize."""
+        kept: List[Article] = []
+        dropped = 0
+        for article in articles:
+            if article.content is None:
+                try:
+                    article.content = self.content_fetcher(article.url) or ""
+                except Exception as error:
+                    logger.warning(f"[{label}] 본문 수집 오류: {article.title[:40]}... ({error})")
+                    article.content = ""
+
+            if len(article.content) >= ARTICLE_CONTENT_MIN_CHARS:
+                kept.append(article)
+            else:
+                dropped += 1
+                logger.info(f"[{label}] 본문 부족으로 제외: {article.title[:40]}...")
+
+        if dropped:
+            logger.info(f"[{label}] 본문 없는 후보 {dropped}건 제외 → {len(kept)}건 유지")
+        return kept
+
+    def _build_verified_pool(self, articles: List[Article], count: int, label: str) -> List[Article]:
+        """Rule-ranked candidates that also have a usable article body."""
         if not articles:
             return []
-
         priority_pool = self._build_priority_pool(articles, count, label)
-        if not priority_pool:
+        return self._ensure_contents(priority_pool, label)
+
+    def _select_by_llm(self, articles: List[Article], count: int, label: str) -> List[Article]:
+        """Convenience wrapper: verify the pool, then let the LLM pick."""
+        return self._pick_with_llm(self._build_verified_pool(articles, count, label), count, label)
+
+    def _pick_with_llm(self, pool: List[Article], count: int, label: str) -> List[Article]:
+        """Let the LLM choose up to `count` articles from an already-verified pool."""
+        if not pool:
             return []
-        if len(priority_pool) <= count:
-            return priority_pool[:count]
+        if len(pool) <= count:
+            return pool[:count]
 
         article_lines = []
-        for index, article in enumerate(priority_pool):
+        for index, article in enumerate(pool):
             team_scores = score_team_relevance(article)
             related_teams = [team for team, score in team_scores.items() if score > 0]
             team_hint = ", ".join(related_teams) or "공통 모빌리티"
+            excerpt = re.sub(r"\s+", " ", (article.content or "")[:200]).strip()
             article_lines.append(
                 f"{index + 1}. [{article.source}] {article.title} "
-                f"(예상 관련 조직: {team_hint})"
+                f"(예상 관련 조직: {team_hint})\n   본문: {excerpt}"
             )
         article_list = "\n".join(article_lines)
 
         prompt = f"""당신은 LG유플러스 모빌리티 산업 전문 에디터입니다.
-아래 {label} 뉴스 목록에서 가장 중요한 {count}개를 선택해주세요.
+아래 {label} 뉴스 목록에서 모빌리티 사업 판단에 중요한 기사를 최대 {count}개 선택해주세요.
 
 조직 관점:
 - 커넥티드카사업팀: 통신 사업, DCM 개발, DCM 운영
@@ -468,25 +484,29 @@ class ArticleFilter:
 - 세 조직 사이에 우선순위를 두지 말고 관련 기사가 한 조직에 편중되지 않도록 구성
 - 여러 조직에 동시에 영향을 주는 교차 조직 신호를 우선 검토
 - 시장 구조 변화, 사업 영향, 시의성, 근거의 구체성을 함께 평가
+- 기준을 충족하는 기사가 {count}개보다 적으면 억지로 채우지 말고 더 적게 선택
 
-추가 기준:
-- 통신 일반기사(모빌리티 맥락 약함)는 제외
-- 경쟁사/시장 relevance를 함께 반영
-- 경쟁사 관점 키워드: {', '.join(COMPETITOR_KEYWORDS[:10])}
-- 시장 관점 키워드: {', '.join(MARKET_KEYWORDS[:10])}
+제외 기준:
+- 모빌리티(차량·자율주행·전기차·충전·관제·인포테인먼트)와 직접 관련이 없는 기사
+- 스마트폰, 통신 요금제, 일반 보안·클라우드 등 모빌리티 맥락이 약한 통신·IT 일반 기사
+- 유명인 사고, 가십, 단순 홍보성 행사 참가 등 사업 판단에 근거가 되지 않는 기사
+
+참고 키워드:
+- 경쟁사 관점: {', '.join(COMPETITOR_KEYWORDS[:10])}
+- 시장 관점: {', '.join(MARKET_KEYWORDS[:10])}
 
 기사 목록:
 {article_list}
 
-반드시 아래 JSON 형식만 출력하세요:
+설명이나 분석 없이 아래 JSON 한 줄만 출력하세요 (첫 글자가 반드시 '{{' 이어야 합니다):
 {{"selected_indices": [1, 2, 3]}}
 
-selected_indices는 위 목록의 번호(1부터 시작)이며 정확히 {count}개여야 합니다."""
+selected_indices는 위 목록의 번호(1부터 시작)이며 최대 {count}개입니다. 적합한 기사가 없으면 빈 배열을 출력하세요."""
 
         try:
             response = self.client.messages.create(
                 model=LLM_MODEL,
-                max_tokens=200,
+                max_tokens=400,
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -496,25 +516,19 @@ selected_indices는 위 목록의 번호(1부터 시작)이며 정확히 {count}
             selected_articles = []
             seen_indices = set()
             for idx in selected_indices:
+                if not isinstance(idx, int):
+                    continue
                 real_idx = idx - 1
-                if 0 <= real_idx < len(priority_pool) and real_idx not in seen_indices:
-                    selected_articles.append(priority_pool[real_idx])
+                if 0 <= real_idx < len(pool) and real_idx not in seen_indices:
+                    selected_articles.append(pool[real_idx])
                     seen_indices.add(real_idx)
 
-            logger.info(f"[{label}] {len(articles)}건 중 {len(selected_articles)}건 선정")
-            if len(selected_articles) < count:
-                selected_articles.extend(
-                    self._select_fallback_generic(
-                        priority_pool,
-                        count - len(selected_articles),
-                        exclude=selected_articles,
-                    )
-                )
+            logger.info(f"[{label}] 검증 후보 {len(pool)}건 중 {len(selected_articles)}건 선정 (상한 {count})")
             return selected_articles[:count]
 
         except Exception as error:
-            logger.error(f"[{label}] LLM 필터링 실패: {error}")
-            return self._select_fallback_generic(priority_pool, count)
+            logger.error(f"[{label}] LLM 필터링 실패, 규칙 기반으로 대체: {error}")
+            return self._select_fallback_generic(pool, count)
 
     def remove_duplicate_topics(self, articles: List[Article], recent_titles: List[str]) -> List[Article]:
         """

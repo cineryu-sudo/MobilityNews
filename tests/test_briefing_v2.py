@@ -262,5 +262,103 @@ class EmailTemplateV2Tests(unittest.TestCase):
         self.assertIn("&lt;script&gt;", html)
 
 
+LONG_BODY = "커넥티드카 플랫폼과 차량 관제 서비스를 연결하는 발표가 있었다. " * 10
+
+
+class ContentGatedSelectionTests(unittest.TestCase):
+    """선별 전에 본문을 확보하고, 본문이 없는 기사와 비모빌리티 기사는 제외한다."""
+
+    def _filter_with(self, llm_text, bodies):
+        article_filter = ArticleFilter.__new__(ArticleFilter)
+        article_filter.client = _FakeClient(llm_text)
+        article_filter.content_fetcher = lambda url: bodies.get(url, "")
+        return article_filter
+
+    def test_articles_without_body_are_dropped_before_llm_selection(self):
+        with_body = _article("커넥티드카 DCM 플랫폼 확대", "https://example.com/with-body")
+        no_body = _article("자율주행 로보택시 상용화 발표", "https://example.com/no-body")
+        article_filter = self._filter_with(
+            '{"selected_indices": [1, 2]}',
+            {with_body.url: LONG_BODY, no_body.url: ""},
+        )
+
+        pool = article_filter._ensure_contents([with_body, no_body], label="국내")
+
+        self.assertEqual([a.url for a in pool], [with_body.url])
+        self.assertEqual(with_body.content, LONG_BODY)
+
+    def test_short_quota_is_not_filled_with_non_mobility_articles(self):
+        mobility = _article("커넥티드카 DCM 플랫폼 확대", "https://example.com/mobility")
+        phone = _article("삼성전자, 폴드8 100만대 증산", "https://example.com/phone")
+        security = _article("LG유플러스, 보안 컨퍼런스 참가", "https://example.com/security")
+        article_filter = self._filter_with(
+            '{"selected_indices": [1]}',
+            {a.url: LONG_BODY for a in (mobility, phone, security)},
+        )
+
+        selected = article_filter.filter_top_articles([mobility, phone, security])
+
+        self.assertEqual([a.url for a in selected], [mobility.url])
+
+    def test_llm_may_return_fewer_than_quota(self):
+        candidates = [
+            _article("커넥티드카 DCM 플랫폼 확대", "https://example.com/a"),
+            _article("자율주행 로보택시 상용화", "https://example.com/b"),
+            _article("전기차 충전 인프라 투자", "https://example.com/c"),
+            _article("차량 관제 FMS 솔루션 출시", "https://example.com/d"),
+        ]
+        article_filter = self._filter_with(
+            '{"selected_indices": [2]}',
+            {a.url: LONG_BODY for a in candidates},
+        )
+
+        selected = article_filter._pick_with_llm(candidates, 3, "국내")
+
+        self.assertEqual([a.url for a in selected], ["https://example.com/b"])
+
+
+class BriefingQaContentTests(unittest.TestCase):
+    def _three_articles(self):
+        articles, summaries = [], []
+        for index in range(3):
+            url = f"https://example.com/article-{index}"
+            articles.append(_article(f"커넥티드카 기사 {index}", url))
+            summaries.append(_complete_summary(url=url, original_title=f"커넥티드카 기사 {index}", translated_title=f"커넥티드카 기사 {index}"))
+        return articles, summaries
+
+    def test_three_articles_satisfy_default_minimum(self):
+        articles, summaries = self._three_articles()
+        briefing = BriefingResult(
+            executive_insight="차량 데이터가 연결과 운영 서비스를 잇는 핵심 사업 자산으로 확대되고 있다.",
+            articles=summaries,
+        )
+
+        result = evaluate_briefing(articles, briefing)
+
+        self.assertNotIn("insufficient_articles", {f.code for f in result.findings})
+        self.assertFalse(result.blocked)
+
+    def test_unsupported_claim_phrases_block_delivery(self):
+        article = _article("커넥티드카와 차량관제 플랫폼 통합")
+        briefing = BriefingResult(
+            executive_insight="차량 데이터가 모빌리티 사업 전반의 경쟁 기반으로 확대되고 있다.",
+            articles=[
+                _complete_summary(
+                    key_points=[
+                        "Zoox가 로보택시 출시를 준비 중임이 기사 제목을 통해 확인됨",
+                        "본문 발췌가 제한적이어서 구체적 수치는 원문 확인이 필요하나 상용화에 근접함",
+                        "Uber는 복수의 AV 사업자와 협력하고 있다.",
+                    ]
+                )
+            ],
+        )
+
+        with patch("ops.qa.QA_MIN_ARTICLE_COUNT", 1):
+            result = evaluate_briefing([article], briefing)
+
+        self.assertTrue(result.blocked)
+        self.assertIn("unsupported_claim", {f.code for f in result.findings})
+
+
 if __name__ == "__main__":
     unittest.main()

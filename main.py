@@ -301,39 +301,13 @@ def collect_articles() -> tuple[List[Article], List[SourceRunResult]]:
     return all_articles, source_results
 
 
-def fetch_article_contents(articles: List[Article]) -> None:
-    """Fetch article body snippets for better summarization quality."""
-    from crawlers.base import BaseCrawler
-
-    class ContentFetcher(BaseCrawler):
-        def __init__(self):
-            super().__init__("ContentFetcher", "", "en")
-
-        def fetch(self):
-            return []
-
-    fetcher = ContentFetcher()
-    for article in articles:
-        try:
-            content = fetcher.fetch_article_content(article.url)
-            if content:
-                article.content = content
-                logger.info(f"  → 본문 수집 완료: {article.title[:40]}... ({len(content)}자)")
-            else:
-                logger.warning(f"  → 본문 수집 실패: {article.title[:40]}...")
-        except Exception as error:
-            logger.warning(f"  → 본문 수집 오류: {article.title[:40]}... ({error})")
-
-
 def process_articles(articles: List[Article]):
     """Select, translate, and summarize articles."""
+    # 본문 수집은 ArticleFilter 안에서 선별 전에 수행된다 (본문 없는 기사는 후보 제외).
     logger.info("Filtering articles...")
     article_filter = ArticleFilter()
     top_articles = article_filter.filter_top_articles(articles)
     logger.info(f"  → Selected {len(top_articles)} top articles")
-
-    logger.info("Fetching article contents...")
-    fetch_article_contents(top_articles)
 
     logger.info("Translating articles...")
     translator = Translator()

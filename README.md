@@ -7,8 +7,9 @@
 - 기사 전처리:
   - 최근 기사만 사용 (`D-2` 필터)
   - 이미 보낸 기사 URL 중복 제거
+  - 규칙 기반 모빌리티 관련도 검사 후 후보 기사 본문 사전 수집 (본문 없으면 제외)
 - AI 처리:
-  - 국내 3건 + 해외 2건 선별
+  - 국내 최대 3건 + 해외 최대 2건 선별 (기준 미달 시 억지로 채우지 않고 최소 3건 이상이면 발송)
   - 커넥티드카사업팀, AI인포사업팀, FMS솔루션사업팀 관점의 균형 평가
   - 영어 기사 제목 한글 번역
   - 핵심 3개 포인트 + 산업 중요성 + 후속 관찰 포인트 생성
@@ -139,8 +140,9 @@ RECIPIENT_EMAILS=a@example.com,b@example.com
 ### 2) 기사 선별 개수/기준 변경
 - 파일: `config.py`
 - 주요 값:
-  - `DOMESTIC_COUNT`
-  - `INTERNATIONAL_COUNT`
+  - `DOMESTIC_COUNT` / `INTERNATIONAL_COUNT` (언어별 상한)
+  - `MIN_ARTICLES_COUNT` (발송 최소 건수, QA 차단 기준)
+  - `ARTICLE_CONTENT_MIN_CHARS` (본문이 이보다 짧으면 후보 제외)
   - `ARTICLE_MAX_AGE_DAYS`
   - `COMPETITOR_KEYWORDS`
   - `MARKET_KEYWORDS`

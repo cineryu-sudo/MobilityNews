@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 import time
 import logging
 
-from config import REQUEST_TIMEOUT, REQUEST_DELAY
+from config import ARTICLE_CONTENT_MAX_CHARS, REQUEST_DELAY, REQUEST_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class Article:
     source: str
     language: str  # "en" or "ko"
     published_date: Optional[date] = field(default=None)  # 기사 발행일 (없으면 None)
-    content: Optional[str] = field(default=None)  # 기사 본문 (요약용, 최대 500자)
+    content: Optional[str] = field(default=None)  # 기사 본문 (요약용, 최대 ARTICLE_CONTENT_MAX_CHARS자)
 
     def __repr__(self):
         return f"Article(title='{self.title[:50]}...', source='{self.source}')"
@@ -55,7 +55,7 @@ class BaseCrawler(ABC):
             logger.error(f"[{self.source_name}] Failed to fetch {url}: {e}")
             return None
     
-    def fetch_article_content(self, url: str, max_chars: int = 500) -> str:
+    def fetch_article_content(self, url: str, max_chars: int = ARTICLE_CONTENT_MAX_CHARS) -> str:
         """기사 URL에서 본문 텍스트를 추출한다 (최대 max_chars자).
 
         <p> 태그의 텍스트를 모아서 반환한다.
@@ -91,3 +91,13 @@ class BaseCrawler(ABC):
             language=self.language,
             published_date=published_date,
         )
+
+
+class ContentFetcher(BaseCrawler):
+    """목록 수집 없이 기사 본문만 가져오는 용도의 크롤러."""
+
+    def __init__(self):
+        super().__init__("ContentFetcher", "", "en")
+
+    def fetch(self) -> List[Article]:
+        return []

@@ -70,9 +70,15 @@ MAX_ARTICLES_PER_SOURCE = 10  # 소스당 최대 수집 기사 수
 # ── LLM 설정 ───────────────────────────────────────────────────
 # Claude 모델 및 기사 선별 개수
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
-TOP_ARTICLES_COUNT = 5   # 총 기사 수 (하위 호환용)
-DOMESTIC_COUNT = 3       # 국내 기사 선별 수 (한국어 소스)
-INTERNATIONAL_COUNT = 2  # 해외 기사 선별 수 (영어 소스)
+TOP_ARTICLES_COUNT = 5   # 총 기사 수 상한 (하위 호환용)
+DOMESTIC_COUNT = 3       # 국내 기사 선별 상한 (한국어 소스)
+INTERNATIONAL_COUNT = 2  # 해외 기사 선별 상한 (영어 소스)
+MIN_ARTICLES_COUNT = 3   # 발송에 필요한 최소 기사 수 (미달 시 QA 차단)
+
+# 선별 전에 후보 기사 본문을 미리 수집한다. 본문이 이 길이보다 짧으면
+# 근거 있는 요약이 불가능하므로 후보에서 제외한다.
+ARTICLE_CONTENT_MAX_CHARS = 1500  # 요약에 전달할 본문 발췌 최대 길이
+ARTICLE_CONTENT_MIN_CHARS = 200   # 이보다 짧으면 본문 없음으로 간주
 
 # ── 날짜 필터 설정 ─────────────────────────────────────────────
 ARTICLE_MAX_AGE_DAYS = 2  # D-2: 최근 2일 이내 기사만 포함 (오래된 기사 제거)
@@ -86,7 +92,7 @@ TOPIC_DEDUP_WEEKDAYS = 5                       # 주제 중복 체크 기간 (�
 # ── 운영/리포트 설정 ───────────────────────────────────────────
 RUN_ARTIFACTS_DIR = os.getenv("RUN_ARTIFACTS_DIR", "data/runs")
 WEEKLY_REPORTS_DIR = os.getenv("WEEKLY_REPORTS_DIR", "data/weekly")
-QA_MIN_ARTICLE_COUNT = _env_int("QA_MIN_ARTICLE_COUNT", TOP_ARTICLES_COUNT)
+QA_MIN_ARTICLE_COUNT = _env_int("QA_MIN_ARTICLE_COUNT", MIN_ARTICLES_COUNT)
 WATCHDOG_MIN_TOTAL_ARTICLES = _env_int("WATCHDOG_MIN_TOTAL_ARTICLES", 20)
 WATCHDOG_LOW_YIELD_THRESHOLD = _env_int("WATCHDOG_LOW_YIELD_THRESHOLD", 1)
 WATCHDOG_ALERT_STREAK = _env_int("WATCHDOG_ALERT_STREAK", 2)
