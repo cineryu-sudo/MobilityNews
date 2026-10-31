@@ -2,13 +2,41 @@
 Run report persistence and markdown summaries.
 """
 
+import copy
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
-from typing import Iterable, List
+import re
+from typing import Any, Iterable, List
 
 from config import RUN_ARTIFACTS_DIR, WEEKLY_REPORTS_DIR
 from ops.models import RunReport, ScoutSuggestion, to_serializable
+
+
+# Run reports are uploaded as GitHub Actions artifacts, so they must never
+# carry recipient email addresses.
+EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+REDACTED_EMAIL = "[redacted-email]"
+
+
+def _mask_emails(value: Any) -> Any:
+    if isinstance(value, str):
+        return EMAIL_PATTERN.sub(REDACTED_EMAIL, value)
+    if isinstance(value, list):
+        return [_mask_emails(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _mask_emails(item) for key, item in value.items()}
+    return value
+
+
+def redact_report(report_dict: dict) -> dict:
+    """Return a copy of a serialized run report without recipient addresses."""
+    cleaned = copy.deepcopy(report_dict)
+    delivery = cleaned.get("delivery_result") or {}
+    for batch in delivery.get("batch_results") or []:
+        if "recipients" in batch:
+            batch["recipient_count"] = len(batch.pop("recipients") or [])
+    return _mask_emails(cleaned)
 
 
 def build_run_id(now: datetime | None = None) -> str:
@@ -144,7 +172,7 @@ def _build_run_markdown(report_dict: dict) -> str:
         )
         for batch in delivery.get("batch_results", []):
             lines.append(
-                f"- batch {batch['batch_index']}/{batch['total_batches']}: success={batch['success']} | attempts={batch['attempts']} | recipients={len(batch['recipients'])}"
+                f"- batch {batch['batch_index']}/{batch['total_batches']}: success={batch['success']} | attempts={batch['attempts']} | recipients={batch.get('recipient_count', len(batch.get('recipients') or []))}"
             )
 
     scout = report_dict.get("scout_suggestions", [])
@@ -168,7 +196,7 @@ def save_run_report(report: RunReport) -> None:
     report.artifacts.report_json_path = str(run_dir / "report.json")
     report.artifacts.report_markdown_path = str(run_dir / "report.md")
 
-    report_dict = to_serializable(report)
+    report_dict = redact_report(to_serializable(report))
     Path(report.artifacts.report_json_path).write_text(
         json.dumps(report_dict, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -177,6 +205,38 @@ def save_run_report(report: RunReport) -> None:
         _build_run_markdown(report_dict),
         encoding="utf-8",
     )
+
+
+def scrub_saved_reports(base_dir: str | None = None) -> int:
+    """Remove recipient addresses from run reports already on disk.
+
+    Older reports restored from the Actions cache still hold recipient lists;
+    run this before uploading artifacts. Returns the number of files cleaned.
+    """
+    base = Path(base_dir or RUN_ARTIFACTS_DIR)
+    if not base.exists():
+        return 0
+
+    cleaned = 0
+    for json_path in sorted(base.glob("*/report.json")):
+        try:
+            original = json.loads(json_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        redacted = redact_report(original)
+        if redacted == original:
+            continue
+
+        json_path.write_text(json.dumps(redacted, ensure_ascii=False, indent=2), encoding="utf-8")
+        md_path = json_path.with_name("report.md")
+        if md_path.exists():
+            md_path.write_text(
+                EMAIL_PATTERN.sub(REDACTED_EMAIL, md_path.read_text(encoding="utf-8")),
+                encoding="utf-8",
+            )
+        cleaned += 1
+    return cleaned
 
 
 def write_weekly_ops_report(
