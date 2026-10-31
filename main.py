@@ -454,8 +454,7 @@ def send_weekly_report_email(report: RunReport) -> bool:
 
     report.state = RunState.REPORT_EMAILED
     report.notes.append(
-        "주간 운영 리포트를 이메일로 발송했습니다: "
-        + ", ".join(OPS_REPORT_RECIPIENT_EMAILS)
+        f"주간 운영 리포트를 이메일로 발송했습니다 (수신자 {len(OPS_REPORT_RECIPIENT_EMAILS)}명)"
     )
     return True
 

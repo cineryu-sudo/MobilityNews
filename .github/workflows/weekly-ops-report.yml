@@ -40,6 +40,11 @@ jobs:
           OPS_REPORT_RECIPIENT_EMAILS: goodnews@lguplus.co.kr
         run: python main.py --send-weekly-report
 
+      # 캐시에서 복원된 예전 리포트까지 수신자 주소를 지운 뒤 업로드
+      - name: Scrub recipient addresses from run reports
+        if: always()
+        run: python -c "from ops.reporting import scrub_saved_reports; print(f'scrubbed {scrub_saved_reports()} report(s)')"
+
       - name: Upload weekly report artifacts
         if: always()
         uses: actions/upload-artifact@v4
