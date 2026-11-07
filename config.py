@@ -48,18 +48,19 @@ OPS_REPORT_RECIPIENT_EMAILS = _env_list(
 )
 
 # ── 뉴스 소스 URL ──────────────────────────────────────────────
-# 크롤링 대상 9개 사이트 (해외 6 + 국내 3)
+# 크롤링 대상 사이트
 # 각 크롤러 클래스에서 직접 URL을 사용하므로 참조용 목록
 NEWS_SOURCES = {
     "techcrunch": "https://techcrunch.com/category/transportation/",
-    "theverge": "https://www.theverge.com/transportation",
+    "theverge": "https://www.theverge.com/rss/transportation/index.xml",
     "autonews": "https://www.autonews.com/mobility-technology",
     "etnews": "https://www.etnews.com/news/section.html?id1=03",
-    "autodaily": "http://www.autodaily.co.kr/news/articleList.html?sc_section_code=S1N1",
+    "autodaily": "https://cdn.autodaily.co.kr/rss/gn_rss_allArticle.xml",
     "hackernews": "https://hn.algolia.com/api/v1/search_by_date?query=autonomous&tags=story",
     "telematics_wire": "https://telematicswire.net/feed/",
     "zdnet_korea": "https://feeds.feedburner.com/zdkorea",
-    "fleetowner": "https://www.fleetowner.com/technology/rss/",
+    "fleetowner": "https://www.fleetowner.com/__rss/website-scheduled-content.xml?input=%7B%22sectionAlias%22%3A%22technology%22%7D",
+    "autoherald": "https://www.autoherald.co.kr/rss/gns_allArticle.xml",
 }
 
 # ── 크롤링 설정 ────────────────────────────────────────────────

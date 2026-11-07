@@ -65,13 +65,17 @@ class BaseCrawler(ABC):
         if not soup:
             return ""
 
-        # <article> 태그가 있으면 그 안에서만 추출, 없으면 <body> 전체
-        article_tag = soup.find("article")
-        container = article_tag if article_tag else soup
-
-        paragraphs = container.find_all("p")
-        text = " ".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+        # 페이지에 <article>이 여러 개면 메뉴·카드일 수 있으므로 문단이 가장 긴 것을 쓰고,
+        # 문단이 있는 <article>이 없으면 페이지 전체에서 추출한다.
+        candidates = [self._paragraph_text(tag) for tag in soup.find_all("article")]
+        text = max(candidates, key=len, default="") or self._paragraph_text(soup)
         return text[:max_chars]
+
+    @staticmethod
+    def _paragraph_text(container) -> str:
+        """컨테이너 안 <p> 태그의 텍스트를 이어 붙인다."""
+        paragraphs = container.find_all("p")
+        return " ".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
 
     @abstractmethod
     def fetch(self) -> List[Article]:

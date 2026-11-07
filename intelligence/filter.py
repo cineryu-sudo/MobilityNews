@@ -79,7 +79,13 @@ MOBILITY_SIGNAL_TERMS = {
     "mobility", "vehicle", "car", "automotive", "ev", "autonomous", "robotaxi",
     "모빌리티", "차량", "자동차", "전기차", "자율주행", "충전", "배터리",
     "완성차", "전장", "플릿", "로보택시", "모빌리티 플랫폼", "택시", "자율차",
-    "물류", "측위", "인포테인먼트", "커넥티드카",
+    "물류", "측위", "인포테인먼트", "커넥티드카", "autonomy",
+    # 완성차·로보택시 기업명은 제목에 일반 용어가 없어도 모빌리티 기사로 본다.
+    # 네이버·카카오·SK·LG 같은 비(非)모빌리티 그룹명은 넣지 않는다.
+    "tesla", "waymo", "rivian", "lucid", "byd", "uber", "toyota", "hyundai", "kia",
+    "gm", "ford", "volkswagen", "bmw", "mercedes", "cybertruck",
+    "테슬라", "웨이모", "리비안", "루시드", "비야디", "우버", "토요타", "현대차",
+    "기아", "폭스바겐", "벤츠", "제네시스", "사이버트럭",
 }
 
 NON_MOBILITY_EXCLUSION_TERMS = {
@@ -89,10 +95,10 @@ NON_MOBILITY_EXCLUSION_TERMS = {
 
 
 def _contains_term(text: str, term: str) -> bool:
-    """Match ASCII keywords on word boundaries and Korean keywords by substring."""
+    """Match ASCII keywords (and simple plurals) on word boundaries, Korean by substring."""
     normalized_term = term.lower()
     if normalized_term.isascii():
-        pattern = rf"(?<![a-z0-9]){re.escape(normalized_term)}(?![a-z0-9])"
+        pattern = rf"(?<![a-z0-9]){re.escape(normalized_term)}s?(?![a-z0-9])"
         return re.search(pattern, text) is not None
     return normalized_term in text
 

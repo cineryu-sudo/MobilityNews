@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 class RSSBaseCrawler(BaseCrawler):
     """Base crawler for RSS feeds."""
     
-    def __init__(self, source_name: str, language: str = "en"):
-        # Fetch base url from config
-        base_url = NEWS_SOURCES.get(source_name, "")
+    def __init__(self, source_name: str, language: str = "en", feed_key: str | None = None):
+        # Fetch base url from config. feed_key lets a source keep its display name.
+        base_url = NEWS_SOURCES.get(feed_key or source_name, "")
         super().__init__(source_name, base_url, language)
         
     def fetch(self) -> List[Article]:
@@ -60,3 +60,18 @@ class ZDNetKoreaCrawler(RSSBaseCrawler):
 class FleetOwnerCrawler(RSSBaseCrawler):
     def __init__(self):
         super().__init__("fleetowner", language="en")
+
+
+class TheVergeCrawler(RSSBaseCrawler):
+    def __init__(self):
+        super().__init__("The Verge", language="en", feed_key="theverge")
+
+
+class AutoHeraldCrawler(RSSBaseCrawler):
+    def __init__(self):
+        super().__init__("오토헤럴드", language="ko", feed_key="autoherald")
+
+
+class AutoDailyCrawler(RSSBaseCrawler):
+    def __init__(self):
+        super().__init__("오토데일리", language="ko", feed_key="autodaily")
