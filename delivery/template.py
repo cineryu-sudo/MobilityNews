@@ -13,6 +13,8 @@ from intelligence.organization import (
     FMS_SOLUTION_TEAM,
     ORGANIZATION_TEAMS,
 )
+from delivery.unsubscribe import UNSUBSCRIBE_SUBJECT, build_unsubscribe_mailto
+from config import UNSUBSCRIBE_EMAIL
 from intelligence.summarize import ArticleSummary
 
 BI_MAGENTA = "#E6007E"
@@ -230,6 +232,10 @@ class EmailTemplate:
         focus_story = EmailTemplate._focus_story(articles[0], articles) if articles else ""
         insight_topics = EmailTemplate._insight_topics(articles[1:]) if len(articles) > 1 else ""
 
+        unsubscribe_url = escape(build_unsubscribe_mailto(), quote=True)
+        unsubscribe_address = escape(UNSUBSCRIBE_EMAIL)
+        unsubscribe_subject = escape(UNSUBSCRIBE_SUBJECT, quote=False)
+
         html = f"""<!DOCTYPE html>
 <html lang="ko" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -321,6 +327,9 @@ class EmailTemplate:
                                 </tr>
                                 <tr>
                                     <td colspan="2" style="padding-top:9px;color:#99949E;font-size:9px;line-height:1.5;">AI가 생성한 산업 브리핑입니다. 중요한 의사결정 전에는 원문을 확인해 주세요.<br>&copy; 2026 LG Uplus Corp. All rights reserved.</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="padding-top:9px;color:#99949E;font-size:10px;line-height:1.5;">이 메일을 더 받고 싶지 않으시면 <a href="{unsubscribe_url}" style="color:{BI_MUTED};text-decoration:underline;">수신 거부</a>를 눌러 메일을 보내 주세요. 메일 창이 열리지 않으면 {unsubscribe_address}로 제목을 '{unsubscribe_subject}'으로 보내 주세요.</td>
                                 </tr>
                             </table>
                         </td>

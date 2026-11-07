@@ -20,6 +20,7 @@ from config import (
     RECIPIENT_EMAILS,
     SMTP_TIMEOUT_SECONDS,
 )
+from delivery.unsubscribe import build_unsubscribe_mailto
 from ops.models import DeliveryBatchResult, DeliveryResult
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ class EmailSender:
         subject: str,
         html_content: str | None = None,
         text_content: str | None = None,
+        list_unsubscribe: bool = False,
     ) -> MIMEMultipart:
         """Build an email message for one recipient batch."""
         msg = MIMEMultipart("alternative")
@@ -59,6 +61,8 @@ class EmailSender:
         msg["From"] = f"Mobility Insight Bot <{self.sender_email}>"
         msg["To"] = self.sender_email
         msg["Bcc"] = ", ".join(recipients)
+        if list_unsubscribe:
+            msg["List-Unsubscribe"] = f"<{build_unsubscribe_mailto()}>"
 
         if text_content:
             msg.attach(MIMEText(text_content, "plain", "utf-8"))
@@ -72,6 +76,7 @@ class EmailSender:
         subject: str,
         html_content: str | None = None,
         text_content: str | None = None,
+        list_unsubscribe: bool = False,
     ) -> DeliveryResult:
         """Send a prepared message body to recipients."""
         if recipients is None:
@@ -118,6 +123,7 @@ class EmailSender:
                     subject,
                     html_content=html_content,
                     text_content=text_content,
+                    list_unsubscribe=list_unsubscribe,
                 )
 
                 success = False
@@ -228,6 +234,7 @@ class EmailSender:
             recipients=recipients,
             subject=subject,
             html_content=html_content,
+            list_unsubscribe=True,
         )
 
     def send_text_report(

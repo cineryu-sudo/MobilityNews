@@ -47,6 +47,9 @@ OPS_REPORT_RECIPIENT_EMAILS = _env_list(
     "goodnews@lguplus.co.kr",
 )
 
+# 수신 거부 요청을 받는 주소 (메일 하단 링크와 List-Unsubscribe 헤더에 사용)
+UNSUBSCRIBE_EMAIL = os.getenv("UNSUBSCRIBE_EMAIL") or "goodnews@lguplus.co.kr"
+
 # ── 뉴스 소스 URL ──────────────────────────────────────────────
 # 크롤링 대상 사이트
 # 각 크롤러 클래스에서 직접 URL을 사용하므로 참조용 목록
