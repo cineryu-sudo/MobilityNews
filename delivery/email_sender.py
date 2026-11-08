@@ -7,6 +7,7 @@ import logging
 import time
 from html import escape
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import List
@@ -20,6 +21,7 @@ from config import (
     RECIPIENT_EMAILS,
     SMTP_TIMEOUT_SECONDS,
 )
+from delivery.brand import LOGO_CID, LOGO_PATH
 from delivery.unsubscribe import build_unsubscribe_mailto
 from ops.models import DeliveryBatchResult, DeliveryResult
 
@@ -56,18 +58,27 @@ class EmailSender:
         list_unsubscribe: bool = False,
     ) -> MIMEMultipart:
         """Build an email message for one recipient batch."""
-        msg = MIMEMultipart("alternative")
+        body = MIMEMultipart("alternative")
+        if text_content:
+            body.attach(MIMEText(text_content, "plain", "utf-8"))
+        if html_content:
+            body.attach(MIMEText(html_content, "html", "utf-8"))
+
+        if html_content and f'"cid:{LOGO_CID}"' in html_content:
+            msg = MIMEMultipart("related")
+            msg.attach(body)
+            logo = MIMEImage(LOGO_PATH.read_bytes(), "png")
+            logo.add_header("Content-ID", f"<{LOGO_CID}>")
+            logo.add_header("Content-Disposition", "inline", filename=LOGO_PATH.name)
+            msg.attach(logo)
+        else:
+            msg = body
         msg["Subject"] = subject
         msg["From"] = f"Mobility Insight Bot <{self.sender_email}>"
         msg["To"] = self.sender_email
         msg["Bcc"] = ", ".join(recipients)
         if list_unsubscribe:
             msg["List-Unsubscribe"] = f"<{build_unsubscribe_mailto()}>"
-
-        if text_content:
-            msg.attach(MIMEText(text_content, "plain", "utf-8"))
-        if html_content:
-            msg.attach(MIMEText(html_content, "html", "utf-8"))
         return msg
 
     def _send_message(

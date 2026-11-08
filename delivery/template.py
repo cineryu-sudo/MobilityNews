@@ -13,6 +13,7 @@ from intelligence.organization import (
     FMS_SOLUTION_TEAM,
     ORGANIZATION_TEAMS,
 )
+from delivery.brand import logo_img
 from delivery.unsubscribe import UNSUBSCRIBE_SUBJECT, build_unsubscribe_mailto
 from config import UNSUBSCRIBE_EMAIL
 from intelligence.summarize import ArticleSummary
@@ -268,12 +269,7 @@ class EmailTemplate:
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                                 <tr>
                                     <td style="vertical-align:middle;">
-                                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                                            <tr>
-                                                <td width="25" height="25" style="width:25px;height:25px;border-radius:50%;background-color:{BI_MAGENTA};text-align:center;color:#FFFFFF;font-size:8px;font-weight:800;line-height:25px;">LG</td>
-                                                <td style="padding-left:7px;color:#303037;font-size:16px;font-weight:800;">LG U<sup style="font-size:9px;">+</sup></td>
-                                            </tr>
-                                        </table>
+                                        {logo_img(63, 18)}
                                     </td>
                                     <td style="text-align:right;color:#3E3942;font-size:12px;"><span style="color:{BI_MAGENTA};font-size:18px;font-weight:800;">U<sup style="font-size:10px;">+</sup></span> Enterprise</td>
                                 </tr>
